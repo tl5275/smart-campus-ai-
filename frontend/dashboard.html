@@ -1,0 +1,943 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Campus AI</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    html,body{height:100%;margin:0}
+    :root{--bg:#020617;--panel:rgba(15,23,42,.88);--border:rgba(148,163,184,.26);--text:#e2e8f0;--muted:#94a3b8;--title:#f8fafc}
+    *{box-sizing:border-box} body{background:var(--bg);color:var(--text);font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif}
+    .app-shell{height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 20% 0%,rgba(30,41,59,.45) 0,rgba(2,6,23,.98) 55%)}
+    .top-nav{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--border);background:rgba(2,6,23,.94);backdrop-filter:blur(8px);z-index:1200;gap:12px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--title)} .brand-dot{width:10px;height:10px;border-radius:50%;background:#22d3ee;box-shadow:0 0 12px rgba(34,211,238,.85)}
+    .nav-tabs{display:flex;gap:8px} .nav-tab{border:1px solid var(--border);background:rgba(15,23,42,.72);color:var(--text);padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
+    .nav-tab:hover{border-color:rgba(56,189,248,.8)} .nav-tab.active{background:rgba(14,116,144,.4);border-color:rgba(56,189,248,.95);color:#e0f2fe}
+    .top-right-controls{position:fixed;top:90px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;min-width:330px;max-width:min(92vw,360px);padding:10px 12px}
+    .scale-note{font-size:11px;color:#93c5fd;letter-spacing:.2px}
+    .zone-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#cbd5e1}
+    .zone-row select{background:rgba(15,23,42,.9);border:1px solid rgba(100,116,139,.5);border-radius:6px;color:#f8fafc;padding:5px 8px;font-size:12px}
+    .zone-chip{padding:4px 8px;border-radius:999px;border:1px solid rgba(56,189,248,.45);background:rgba(2,132,199,.22);color:#e0f2fe;font-size:11px;font-weight:600}
+    .zone-stats{font-size:11px;color:#94a3b8}
+    .sustain-widget{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;border:1px solid rgba(100,116,139,.4);background:rgba(15,23,42,.7);transition:border-color .25s,box-shadow .25s}
+    .sustain-ring{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#22c55e 0deg,#1e293b 0deg)}
+    .sustain-ring-inner{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#0b1220;color:#e2e8f0;font-size:10px;font-weight:700}
+    .sustain-meta{display:flex;flex-direction:column;gap:2px}
+    .sustain-title{font-size:11px;color:#93c5fd}
+    .sustain-status{font-size:11px;font-weight:700}
+    .sustain-value{font-size:13px;font-weight:700;color:#f8fafc}
+    .sustain-ok .sustain-status{color:#4ade80}
+    .sustain-risk .sustain-status{color:#fb923c}
+    .sustain-critical .sustain-status{color:#f87171}
+    .sustain-low-glow{box-shadow:0 0 14px rgba(239,68,68,.45);border-color:rgba(239,68,68,.7)}
+    .content{position:relative;height:calc(100vh - 72px);overflow:visible}
+    .tab-section{position:absolute;inset:0;opacity:0;transform:translateY(14px);pointer-events:none;transition:opacity .28s,transform .28s;padding:16px}
+    .tab-section.active{opacity:1;transform:translateY(0);pointer-events:auto}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(2,6,23,.45);backdrop-filter:blur(8px)}
+    .panel-title{margin:0;font-size:16px;color:var(--title)} .panel-sub{margin:0;color:var(--muted);font-size:12px}
+    #tab-monitoring{padding:0}.monitor-wrap{position:relative;width:100%;height:100%}#map{position:relative;z-index:1;width:100%;height:100%}
+    .monitor-status{position:absolute;right:16px;bottom:16px;width:340px;z-index:1000;padding:12px 14px;transition:border-color .25s,box-shadow .25s}
+    .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:10px;font-size:12px}
+    .status-item{display:flex;justify-content:space-between;color:#cbd5e1;border-bottom:1px dashed rgba(100,116,139,.35);padding-bottom:3px}.status-item b{color:#f8fafc}
+    .route-btn{margin-top:10px;width:100%;padding:9px 10px;border:1px solid rgba(56,189,248,.78);background:rgba(2,132,199,.26);color:#e0f2fe;border-radius:8px;font-weight:700;cursor:pointer}
+    .route-btn:hover{border-color:rgba(125,211,252,.95);background:rgba(2,132,199,.38)}
+    .risk-low{border-color:rgba(34,197,94,.82);box-shadow:0 8px 24px rgba(2,6,23,.45),0 0 0 1px rgba(34,197,94,.3)}
+    .risk-medium{border-color:rgba(249,115,22,.9);box-shadow:0 8px 24px rgba(2,6,23,.45),0 0 0 1px rgba(249,115,22,.28)}
+    .risk-high{border-color:rgba(239,68,68,.95);box-shadow:0 8px 24px rgba(2,6,23,.45),0 0 14px rgba(239,68,68,.5)}
+    .analytics-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;height:100%}.forecast-panel{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+    .forecast-chart-title{font-size:12px;color:#cbd5e1;margin-bottom:4px}.forecast-chart{width:100%;height:86px}
+    .analytics-side{display:flex;flex-direction:column;gap:14px}.metric-card{padding:14px}.metric-value{margin-top:8px;font-size:26px;font-weight:700}
+    .cost-panel{padding:14px 16px}.cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    .cost-card{background:rgba(15,23,42,.65);border:1px solid rgba(100,116,139,.25);border-radius:8px;padding:8px}
+    .cost-label{font-size:11px;color:#93c5fd}.cost-value{font-size:16px;font-weight:700;margin-top:3px}
+    .cost-meta{font-size:11px;color:#94a3b8;margin-top:2px}
+    .cost-summary{margin-top:8px;font-size:12px;color:#cbd5e1}
+    .cost-chart-wrap{margin-top:10px;height:140px}
+    .cost-chart{width:100%;height:100%}
+    .sustain-panel{padding:12px 14px}
+    .sustain-breakdown{margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:#cbd5e1}
+    .sustain-breakdown div{display:flex;justify-content:space-between;border-bottom:1px dashed rgba(100,116,139,.35);padding-bottom:3px}
+    .sustain-trend-wrap{margin-top:8px;height:120px}
+    .sustain-trend{width:100%;height:100%}
+    .twin-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;height:100%}.twin-panel{padding:14px 16px;overflow:auto}
+    .twin-row{display:flex;gap:8px;align-items:center;margin:10px 0;font-size:13px}.twin-row label{min-width:90px;color:#cbd5e1}
+    .twin-row select,.twin-row input[type="number"]{flex:1;background:rgba(15,23,42,.9);border:1px solid rgba(100,116,139,.5);border-radius:6px;color:#f8fafc;padding:6px 8px;font-size:12px}
+    .twin-btn{width:100%;padding:8px 10px;border:1px solid rgba(56,189,248,.7);background:rgba(2,132,199,.3);color:#e0f2fe;border-radius:8px;font-weight:600;cursor:pointer}
+    .preset-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+    .preset-btn{padding:6px 8px;border-radius:7px;border:1px solid rgba(148,163,184,.45);background:rgba(15,23,42,.9);color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer}
+    .preset-btn:hover{border-color:rgba(56,189,248,.8)} .twin-status{margin-top:10px;padding-top:8px;border-top:1px solid rgba(71,85,105,.6);font-size:12px;color:#cbd5e1}
+    .decisions-layout{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px;height:100%}.decision-panel{padding:14px 16px;overflow:auto}
+    .decision-item{margin:8px 0;padding:9px 10px;border-radius:8px;border:1px solid transparent;background:rgba(15,23,42,.65);font-size:13px;line-height:1.45}
+    .decision-priority{font-weight:700;margin-bottom:4px;font-size:12px}.priority-high{border-color:rgba(239,68,68,.55);background:rgba(127,29,29,.35)}.priority-high .decision-priority{color:#f87171}
+    .priority-medium{border-color:rgba(249,115,22,.55);background:rgba(124,45,18,.3)}.priority-medium .decision-priority{color:#fb923c}
+    .priority-low{border-color:rgba(34,197,94,.5);background:rgba(21,128,61,.25)}.priority-low .decision-priority{color:#4ade80}
+    .cross-item{margin:8px 0;padding:10px;border-radius:8px;border:1px solid transparent;background:rgba(15,23,42,.65);font-size:13px;line-height:1.45}
+    .cross-item.critical{border-color:rgba(239,68,68,.8);background:rgba(127,29,29,.45)}
+    .cross-item.medium{border-color:rgba(249,115,22,.65);background:rgba(124,45,18,.35)}
+    .cross-item.low{border-color:rgba(34,197,94,.55);background:rgba(21,128,61,.3)}
+    .cross-priority{font-weight:800;font-size:12px;letter-spacing:.35px}
+    .cross-zones{margin-top:4px;font-size:12px;color:#cbd5e1}
+    .cross-action{margin-top:6px;color:#e2e8f0}
+    .cross-confidence{margin-top:6px;font-size:11px;color:#94a3b8}
+    .cross-explanation{margin-top:10px;font-size:12px;color:#cbd5e1;border-top:1px solid rgba(71,85,105,.5);padding-top:8px}
+    .log-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 54px);overflow:auto;font-size:12px}
+    .log-item{padding:8px;border-radius:8px;background:rgba(15,23,42,.65);border:1px solid rgba(100,116,139,.25);color:#cbd5e1}
+    .system-alert-banner{position:fixed;top:74px;left:50%;transform:translateX(-50%);z-index:1300;padding:10px 20px;border-radius:999px;background:rgba(127,29,29,.95);border:1px solid rgba(248,113,113,.9);color:#fff;font-weight:700;box-shadow:0 8px 24px rgba(127,29,29,.45);opacity:0;pointer-events:none;transition:opacity .3s}
+    .system-alert-banner.show{opacity:1;animation:bannerFadeIn .35s}@keyframes bannerFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    .critical-pulse{animation:criticalPulse 1.2s infinite ease-in-out;transform-origin:center}@keyframes criticalPulse{0%{opacity:.85}50%{opacity:1;filter:drop-shadow(0 0 6px rgba(239,68,68,.95))}100%{opacity:.85}}
+    .leak-pulse{animation:leakPulse 1s infinite ease-in-out;transform-origin:center}@keyframes leakPulse{0%{opacity:.9;transform:scale(1)}50%{opacity:1;transform:scale(1.12);filter:drop-shadow(0 0 7px rgba(220,38,38,.95))}100%{opacity:.9;transform:scale(1)}}
+    .energy-overload-pulse{animation:energyOverloadPulse 1.1s infinite ease-in-out;transform-origin:center}@keyframes energyOverloadPulse{0%{opacity:.9;transform:scale(1)}50%{opacity:1;transform:scale(1.1);filter:drop-shadow(0 0 8px rgba(147,51,234,.95))}100%{opacity:.9;transform:scale(1)}}
+    .leaflet-routing-container{display:none}
+    @media (max-width:1100px){.analytics-grid,.twin-layout,.decisions-layout{grid-template-columns:1fr}.monitor-status{width:min(92vw,360px)}.top-nav{height:auto;padding:10px 12px;align-items:flex-start;flex-direction:column}.content{height:calc(100vh - 128px)}.zone-row{flex-wrap:wrap}}
+    @media (max-width:900px){
+      .top-right-controls{
+        top:136px;
+        right:12px;
+        left:12px;
+        min-width:0;
+        max-width:none;
+      }
+      .zone-row{flex-wrap:wrap}
+      .zone-row select{flex:1;min-width:160px}
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="top-nav">
+    <div class="brand"><span class="brand-dot"></span>Smart Campus AI</div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="monitoring">Monitoring</button>
+      <button class="nav-tab" data-tab="analytics">Analytics</button>
+      <button class="nav-tab" data-tab="digital-twin">Digital Twin</button>
+      <button class="nav-tab" data-tab="decisions">Decisions</button>
+    </nav>
+  </header>
+  <div class="top-right-controls panel" id="top-right-controls">
+      <div class="scale-note">Scalable Architecture: Zone-Based Deployment Enabled</div>
+      <div class="zone-row">
+        <label for="zone-select">Select Zone:</label>
+        <select id="zone-select">
+          <option value="">Entire Campus</option>
+          <option value="tech_park_zone">Tech Park Zone</option>
+          <option value="academic_zone">Academic Zone</option>
+          <option value="hostel_zone">Hostel Zone</option>
+          <option value="admin_zone">Admin Zone</option>
+          <option value="sports_zone">Sports Zone</option>
+          <option value="hospital_zone">Hospital Zone</option>
+        </select>
+        <span class="zone-chip" id="active-zone-chip">Active: Entire Campus</span>
+      </div>
+      <div class="zone-stats" id="zone-stats">Total zones: 6 | Risk (Zone/Campus): 0/0</div>
+      <div class="sustain-widget sustain-ok" id="sustain-widget">
+        <div class="sustain-ring" id="sustain-ring">
+          <div class="sustain-ring-inner"><span id="sustain-ring-value">100</span></div>
+        </div>
+        <div class="sustain-meta">
+          <div class="sustain-title">Sustainability Index</div>
+          <div class="sustain-value" id="sustain-score-text">100</div>
+          <div class="sustain-status" id="sustain-status-text">SUSTAINABLE</div>
+        </div>
+      </div>
+  </div>
+  <div class="content">
+    <div class="system-alert-banner" id="system-alert-banner">&#x1F6A8; SYSTEM ALERT: Immediate Action Required</div>
+    <section class="tab-section active" id="tab-monitoring">
+      <div class="monitor-wrap">
+        <div id="map"></div>
+        <div class="monitor-status panel" id="monitor-status-bar">
+          <h3 class="panel-title">Monitoring Snapshot</h3>
+          <p class="panel-sub">Live risk and incident counts</p>
+          <div class="status-grid">
+            <div class="status-item"><span>Total Bins</span><b id="total-bins">0</b></div>
+            <div class="status-item"><span>CRITICAL</span><b id="critical-bins">0</b></div>
+            <div class="status-item"><span>WARNING</span><b id="warning-bins">0</b></div>
+            <div class="status-item"><span>NORMAL</span><b id="normal-bins">0</b></div>
+            <div class="status-item"><span>Water Leaks</span><b id="leak-nodes">0</b></div>
+            <div class="status-item"><span>Energy Overloads</span><b id="energy-overloads">0</b></div>
+            <div class="status-item"><span>Escalation</span><b id="escalation-index">0</b></div>
+            <div class="status-item"><span>Avg Fill</span><b id="average-fill">0%</b></div>
+            <div class="status-item" style="grid-column: span 2;"><span>Risk Score</span><b id="risk-score">0</b></div>
+          </div>
+          <button class="route-btn" id="generate-route-btn" type="button">Generate Waste Route</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-section" id="tab-analytics">
+      <div class="analytics-grid">
+        <div class="forecast-panel panel" id="forecast-panel">
+          <h3 class="panel-title">Predictive Forecasts</h3>
+          <p class="panel-sub">10-minute intervals for next 60 minutes</p>
+          <div class="forecast-chart-wrap"><div class="forecast-chart-title">Waste Forecast</div><canvas class="forecast-chart" id="waste-forecast-chart"></canvas></div>
+          <div class="forecast-chart-wrap"><div class="forecast-chart-title">Energy Forecast</div><canvas class="forecast-chart" id="energy-forecast-chart"></canvas></div>
+          <div class="forecast-chart-wrap"><div class="forecast-chart-title">Risk Trend</div><canvas class="forecast-chart" id="risk-trend-chart"></canvas></div>
+        </div>
+        <div class="analytics-side">
+          <div class="metric-card panel"><h3 class="panel-title">Energy Analytics</h3><p class="panel-sub">Average projected load</p><div class="metric-value" id="analytics-energy">0 kW</div></div>
+          <div class="metric-card panel"><h3 class="panel-title">Waste Analytics</h3><p class="panel-sub">Average projected fill</p><div class="metric-value" id="analytics-waste">0%</div></div>
+          <div class="metric-card panel"><h3 class="panel-title">System Risk Trend</h3><p class="panel-sub">Latest risk snapshot</p><div class="metric-value" id="analytics-risk">0</div></div>
+          <div class="cost-panel panel" id="cost-optimization-panel">
+            <h3 class="panel-title">Cost Optimization Intelligence</h3>
+            <p class="panel-sub">Economic and sustainability impact</p>
+            <div class="cost-grid">
+              <div class="cost-card"><div class="cost-label">Waste Savings</div><div class="cost-value" id="cost-waste-inr">₹0</div><div class="cost-meta" id="cost-waste-meta">Fuel 0L | Time 0m</div></div>
+              <div class="cost-card"><div class="cost-label">Water Savings</div><div class="cost-value" id="cost-water-inr">₹0</div><div class="cost-meta" id="cost-water-meta">Loss prevented 0L/h</div></div>
+              <div class="cost-card"><div class="cost-label">Energy Savings</div><div class="cost-value" id="cost-energy-inr">₹0</div><div class="cost-meta" id="cost-energy-meta">kWh 0 | Peak 0kW</div></div>
+              <div class="cost-card"><div class="cost-label">Total Savings</div><div class="cost-value" id="cost-total-inr">₹0</div><div class="cost-meta" id="cost-co2-meta">CO2 prevented 0kg</div></div>
+            </div>
+            <div class="cost-summary" id="cost-zone-summary">Scope: Entire Campus</div>
+            <div class="cost-chart-wrap"><canvas class="cost-chart" id="cost-comparison-chart"></canvas></div>
+          </div>
+          <div class="sustain-panel panel" id="sustainability-panel">
+            <h3 class="panel-title">Sustainability Impact</h3>
+            <p class="panel-sub">ESG trend and module impact breakdown</p>
+            <div class="sustain-trend-wrap"><canvas class="sustain-trend" id="sustainability-trend-chart"></canvas></div>
+            <div class="sustain-breakdown">
+              <div><span>Waste Impact %</span><b id="sustain-waste-impact">0%</b></div>
+              <div><span>Water Impact %</span><b id="sustain-water-impact">0%</b></div>
+              <div><span>Energy Impact %</span><b id="sustain-energy-impact">0%</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-section" id="tab-digital-twin">
+      <div class="twin-layout">
+        <div class="twin-panel panel" id="twin-panel">
+          <h3 class="panel-title">Simulation Controls</h3>
+          <p class="panel-sub">Adjust scenario behavior in real time</p>
+          <div class="twin-row"><label for="scenario-select">Scenario</label><select id="scenario-select"><option value="normal_day">normal_day</option><option value="festival_peak">festival_peak</option><option value="rainstorm">rainstorm</option><option value="exam_week">exam_week</option></select></div>
+          <div class="twin-row"><label for="mode-select">Mode</label><select id="mode-select"><option value="normal">normal</option><option value="conservative">conservative</option><option value="aggressive">aggressive</option></select></div>
+          <div class="twin-row"><label for="stress-level">Stress</label><input type="number" id="stress-level" min="1" max="3" value="1" /></div>
+          <div class="twin-row"><label for="stress-toggle">Stress Test</label><input type="checkbox" id="stress-toggle" /></div>
+          <div class="twin-actions">
+            <button class="twin-btn" id="apply-twin-btn" type="button">Apply Twin Config</button>
+            <div class="preset-grid">
+              <button class="preset-btn" id="preset-festival" type="button">Festival Stress</button>
+              <button class="preset-btn" id="preset-rainstorm" type="button">Rainstorm</button>
+              <button class="preset-btn" id="preset-recovery" type="button">Recovery</button>
+            </div>
+          </div>
+          <div class="twin-status" id="twin-status">Scenario: normal_day | Mode: normal | Escalation: 0</div>
+        </div>
+        <div class="twin-panel panel"><h3 class="panel-title">Digital Twin Context</h3><p class="panel-sub">Live command center insights</p><div class="log-list" id="twin-log-list"><div class="log-item">Twin initialized. Waiting for updates...</div></div></div>
+      </div>
+    </section>
+
+    <section class="tab-section" id="tab-decisions">
+      <div class="decisions-layout">
+        <div class="decision-panel panel" id="decision-panel">
+          <h3 class="panel-title">AI Recommendations</h3><p class="panel-sub">Priority actions generated from live signals</p>
+          <div id="decision-list"><div class="decision-item priority-low"><div class="decision-priority">LOW</div><div class="decision-message">System stable</div></div></div>
+        </div>
+        <div class="decision-panel panel" id="cross-intelligence-panel">
+          <h3 class="panel-title">Cross-System Intelligence</h3>
+          <p class="panel-sub">Coordinated actions across waste, water, and energy</p>
+          <div id="cross-intelligence-list">
+            <div class="cross-item low">
+              <div class="cross-priority">LOW</div>
+              <div class="cross-zones">Zone: Entire Campus</div>
+              <div class="cross-action">Awaiting cross-system correlation...</div>
+              <div class="cross-confidence">Confidence: 0.00</div>
+            </div>
+          </div>
+          <div class="cross-explanation" id="cross-intelligence-explanation">No cross-system explanation yet.</div>
+        </div>
+        <div class="decision-panel panel"><h3 class="panel-title">System Logs</h3><p class="panel-sub">Recent recommendation and risk events</p><div class="log-list" id="system-log-list"><div class="log-item">Logs will appear as decisions update.</div></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+  const map = L.map("map").setView([12.8230, 80.0444], 16);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+
+  let markersLayer = L.layerGroup().addTo(map);
+  let waterLayer = L.layerGroup().addTo(map);
+  let energyLayer = L.layerGroup().addTo(map);
+  let routingControl = null;
+  let generatedRouteHash = "";
+  let routeRequestInFlight = false;
+  const HUB_COORDINATE = { lat: 12.82357, lon: 80.04200 }; // University Building
+  // Keep total OSRM waypoints conservative for public endpoint stability.
+  // This includes the hub waypoint.
+  const MAX_OSRM_WAYPOINTS = 12;
+  // Number of bins we can include = total waypoints - 1 (hub).
+  const MAX_ROUTE_BINS = Math.max(0, MAX_OSRM_WAYPOINTS - 1);
+  let latestBinsData = [];
+  let currentLeakCount = 0;
+  let currentOverloadCount = 0;
+  let currentEscalationIndex = 0;
+  let currentRiskScore = 0;
+  let activeZone = "";
+  const API_BASE = "";
+
+  function zoneLabel(zoneValue) {
+    const labels = {
+      "": "Entire Campus",
+      tech_park_zone: "Tech Park Zone",
+      academic_zone: "Academic Zone",
+      hostel_zone: "Hostel Zone",
+      admin_zone: "Admin Zone",
+      sports_zone: "Sports Zone",
+      hospital_zone: "Hospital Zone"
+    };
+    return labels[zoneValue] || "Entire Campus";
+  }
+
+  function apiUrl(path, includeZone = true) {
+    const url = new URL(`${API_BASE}${path}`, window.location.origin);
+    if (includeZone && activeZone) {
+      url.searchParams.set("zone", activeZone);
+    }
+    return url.toString();
+  }
+
+  function updateZoneHeader(zoneRisk = 0, campusRisk = 0, totalZones = 6) {
+    document.getElementById("active-zone-chip").textContent = `Active: ${zoneLabel(activeZone)}`;
+    document.getElementById("zone-stats").textContent = `Total zones: ${totalZones} | Risk (Zone/Campus): ${zoneRisk}/${campusRisk}`;
+  }
+
+  let wasteForecastChart = null;
+  let energyForecastChart = null;
+  let riskTrendChart = null;
+  let costComparisonChart = null;
+  let sustainabilityTrendChart = null;
+  let currentSustainabilityScore = 100;
+  const forecastLabels = ["+10m", "+20m", "+30m", "+40m", "+50m", "+60m"];
+
+  const tabMap = { monitoring: "tab-monitoring", analytics: "tab-analytics", "digital-twin": "tab-digital-twin", decisions: "tab-decisions" };
+
+  function addLog(listId, message, maxItems) {
+    const logList = document.getElementById(listId);
+    if (!logList) return;
+    const now = new Date().toLocaleTimeString();
+    const log = document.createElement("div");
+    log.className = "log-item";
+    log.textContent = `[${now}] ${message}`;
+    logList.prepend(log);
+    const items = logList.querySelectorAll(".log-item");
+    if (items.length > maxItems) items[items.length - 1].remove();
+  }
+
+  function switchTab(tabName) {
+    document.querySelectorAll(".nav-tab").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tabName));
+    document.querySelectorAll(".tab-section").forEach((section) => section.classList.remove("active"));
+    const target = document.getElementById(tabMap[tabName]);
+    if (target) target.classList.add("active");
+    if (tabName === "monitoring") setTimeout(() => map.invalidateSize(), 160);
+  }
+
+  document.querySelectorAll(".nav-tab").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+  const requestedTab = new URLSearchParams(window.location.search).get("tab");
+  if (requestedTab && tabMap[requestedTab]) {
+    switchTab(requestedTab);
+  }
+  function createMiniChart(canvasId, lineColor, yMin = 0, yMax = 100) {
+    const context = document.getElementById(canvasId).getContext("2d");
+    return new Chart(context, {
+      type: "line",
+      data: { labels: forecastLabels, datasets: [{ data: [0, 0, 0, 0, 0, 0], borderColor: lineColor, backgroundColor: "transparent", borderWidth: 2, pointRadius: 0, tension: 0.35 }] },
+      options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: true } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true }, grid: { color: "rgba(71, 85, 105, 0.2)" } },
+          y: { min: yMin, max: yMax, ticks: { color: "#94a3b8", maxTicksLimit: 4 }, grid: { color: "rgba(71, 85, 105, 0.18)" } }
+        }
+      }
+    });
+  }
+
+  function ensureForecastCharts() {
+    if (!wasteForecastChart) wasteForecastChart = createMiniChart("waste-forecast-chart", "#f97316", 0, 100);
+    if (!energyForecastChart) energyForecastChart = createMiniChart("energy-forecast-chart", "#9333ea", 0, 300);
+    if (!riskTrendChart) riskTrendChart = createMiniChart("risk-trend-chart", "#ef4444", 0, 100);
+  }
+
+  function ensureCostChart() {
+    if (costComparisonChart) return;
+    const context = document.getElementById("cost-comparison-chart").getContext("2d");
+    costComparisonChart = new Chart(context, {
+      type: "bar",
+      data: {
+        labels: ["Predicted Cost", "Post-Optimization Cost"],
+        datasets: [{
+          label: "₹",
+          data: [0, 0],
+          backgroundColor: ["rgba(239,68,68,0.7)", "rgba(34,197,94,0.7)"],
+          borderColor: ["rgba(239,68,68,1)", "rgba(34,197,94,1)"],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(71, 85, 105, 0.2)" } },
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(71, 85, 105, 0.18)" } }
+        }
+      }
+    });
+  }
+
+  function ensureSustainabilityChart() {
+    if (sustainabilityTrendChart) return;
+    const context = document.getElementById("sustainability-trend-chart").getContext("2d");
+    sustainabilityTrendChart = new Chart(context, {
+      type: "line",
+      data: {
+        labels: ["t-9","t-8","t-7","t-6","t-5","t-4","t-3","t-2","t-1","t"],
+        datasets: [{
+          data: [100],
+          borderColor: "#22c55e",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3
+        }]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true }, grid: { color: "rgba(71, 85, 105, 0.18)" } },
+          y: { min: 0, max: 100, ticks: { color: "#94a3b8", maxTicksLimit: 5 }, grid: { color: "rgba(71, 85, 105, 0.18)" } }
+        }
+      }
+    });
+  }
+
+  function updateChartData(chart, labels, values) { chart.data.labels = labels; chart.data.datasets[0].data = values; chart.update(); }
+
+  function applyRiskStyle(risk) {
+    const panel = document.getElementById("monitor-status-bar");
+    panel.classList.remove("risk-low", "risk-medium", "risk-high");
+    if (risk < 40) panel.classList.add("risk-low");
+    else if (risk <= 70) panel.classList.add("risk-medium");
+    else panel.classList.add("risk-high");
+  }
+
+  function toggleSystemAlert(risk) {
+    const banner = document.getElementById("system-alert-banner");
+    if (risk > 70) banner.classList.add("show");
+    else banner.classList.remove("show");
+  }
+
+  function updateDashboard(data) {
+    const totalBins = data.length;
+    const criticalCount = data.filter((bin) => bin.status === "CRITICAL").length;
+    const warningCount = data.filter((bin) => bin.status === "WARNING").length;
+    const normalCount = data.filter((bin) => bin.status === "NORMAL").length;
+    const totalFill = data.reduce((sum, bin) => sum + (bin.fill_level || 0), 0);
+    const averageFill = totalBins > 0 ? (totalFill / totalBins).toFixed(1) : "0.0";
+
+    let risk = (criticalCount * 40) + (warningCount * 20);
+    risk += currentLeakCount * 30;
+    risk += currentOverloadCount * 25;
+    risk += Math.round(currentEscalationIndex * 0.35);
+    risk = Math.min(risk, 100);
+    currentRiskScore = risk;
+
+    document.getElementById("total-bins").textContent = totalBins;
+    document.getElementById("critical-bins").textContent = criticalCount;
+    document.getElementById("warning-bins").textContent = warningCount;
+    document.getElementById("normal-bins").textContent = normalCount;
+    document.getElementById("leak-nodes").textContent = currentLeakCount;
+    document.getElementById("energy-overloads").textContent = currentOverloadCount;
+    document.getElementById("escalation-index").textContent = currentEscalationIndex.toFixed(1);
+    document.getElementById("average-fill").textContent = `${averageFill}%`;
+    document.getElementById("risk-score").textContent = risk;
+
+    document.getElementById("analytics-waste").textContent = `${averageFill}%`;
+    document.getElementById("analytics-risk").textContent = risk;
+
+    applyRiskStyle(risk);
+    toggleSystemAlert(risk);
+  }
+
+  async function loadBins() {
+    try {
+      markersLayer.clearLayers();
+      const response = await fetch(apiUrl("/bins"));
+      const data = await response.json();
+      latestBinsData = data;
+      updateDashboard(data);
+
+      data.forEach((bin) => {
+        const color = bin.status === "CRITICAL" ? "red" : (bin.status === "WARNING" ? "orange" : "green");
+        const circle = L.circleMarker([bin.lat, bin.lon], { color: color, fillColor: color, fillOpacity: 0.9, weight: 2, radius: 12 });
+        circle.bindPopup(
+          `<b>Bin ID:</b> ${bin.id}<br>` +
+          `<b>Building:</b> ${bin.building_name || "N/A"}<br>` +
+          `<b>Zone:</b> ${bin.zone || "N/A"}<br>` +
+          `<b>Floors:</b> ${bin.floors ?? "N/A"}<br>` +
+          `<b>Fill:</b> ${bin.fill_level}%<br>` +
+          `<b>Predicted Overflow:</b> ${bin.predicted_overflow_minutes} min<br>` +
+          `<b>Status:</b> ${bin.status}`
+        );
+        markersLayer.addLayer(circle);
+        if (bin.status === "CRITICAL") {
+          const applyPulse = () => { const element = circle.getElement(); if (element) element.classList.add("critical-pulse"); };
+          applyPulse();
+          circle.on("add", applyPulse);
+        }
+      });
+
+    } catch (error) {
+      console.error("[loadBins] failed:", error);
+    }
+  }
+
+  async function loadWaterNodes() {
+    try {
+      waterLayer.clearLayers();
+      const response = await fetch(apiUrl("/water-nodes"));
+      const data = await response.json();
+      currentLeakCount = data.filter((node) => node.status === "LEAK").length;
+      if (latestBinsData.length > 0) updateDashboard(latestBinsData);
+
+      data.forEach((node) => {
+        const isLeak = node.status === "LEAK";
+        const color = isLeak ? "#dc2626" : "#2563eb";
+        const circle = L.circleMarker([node.lat, node.lon], { color: color, fillColor: color, fillOpacity: 0.85, radius: isLeak ? 12 : 9, weight: 2 });
+        circle.bindPopup(`<b>Water Node ID:</b> ${node.id}<br><b>Pressure:</b> ${node.pressure} PSI<br><b>Status:</b> ${node.status}${isLeak ? "<br><b>&#9888;&#65039; Leak Detected</b>" : ""}`);
+        waterLayer.addLayer(circle);
+        if (isLeak) {
+          const applyLeakPulse = () => { const element = circle.getElement(); if (element) element.classList.add("leak-pulse"); };
+          applyLeakPulse();
+          circle.on("add", applyLeakPulse);
+        }
+      });
+    } catch (error) { console.error("[loadWaterNodes] failed:", error); }
+  }
+  async function loadEnergyNodes() {
+    try {
+      energyLayer.clearLayers();
+      const response = await fetch(apiUrl("/energy-nodes"));
+      const data = await response.json();
+      currentOverloadCount = data.filter((node) => node.status === "OVERLOAD").length;
+      if (latestBinsData.length > 0) updateDashboard(latestBinsData);
+
+      const avgEnergy = data.length > 0 ? (data.reduce((sum, node) => sum + (node.predicted_load || 0), 0) / data.length).toFixed(1) : "0.0";
+      document.getElementById("analytics-energy").textContent = `${avgEnergy} kW`;
+
+      data.forEach((node) => {
+        const isOverload = node.status === "OVERLOAD";
+        const color = isOverload ? "#9333ea" : "#facc15";
+        const circle = L.circleMarker([node.lat, node.lon], { color: color, fillColor: color, fillOpacity: 0.85, radius: isOverload ? 11 : 9, weight: 2 });
+        circle.bindPopup(`<b>Building:</b> ${node.name}<br><b>Current Load:</b> ${node.current_load} kW<br><b>Predicted Load:</b> ${node.predicted_load} kW<br><b>Status:</b> ${node.status}`);
+        energyLayer.addLayer(circle);
+        if (isOverload) {
+          const applyOverloadPulse = () => { const element = circle.getElement(); if (element) element.classList.add("energy-overload-pulse"); };
+          applyOverloadPulse();
+          circle.on("add", applyOverloadPulse);
+        }
+      });
+    } catch (error) { console.error("[loadEnergyNodes] failed:", error); }
+  }
+
+  function buildRouteBins(bins) {
+    const severityRank = { CRITICAL: 0, WARNING: 1 };
+    return (bins || [])
+      .filter((bin) =>
+        (bin.status === "CRITICAL" || bin.status === "WARNING")
+        && Number.isFinite(Number(bin.lat))
+        && Number.isFinite(Number(bin.lon))
+      )
+      .sort((a, b) => {
+        const rankDiff = (severityRank[a.status] ?? 99) - (severityRank[b.status] ?? 99);
+        if (rankDiff !== 0) return rankDiff;
+        const etaA = Number.isFinite(Number(a.predicted_overflow_minutes)) ? Number(a.predicted_overflow_minutes) : 10 ** 9;
+        const etaB = Number.isFinite(Number(b.predicted_overflow_minutes)) ? Number(b.predicted_overflow_minutes) : 10 ** 9;
+        if (etaA !== etaB) return etaA - etaB;
+        return Number(a.id) - Number(b.id);
+      })
+      .slice(0, MAX_ROUTE_BINS);
+  }
+
+  function routeHash(routeBins) {
+    return routeBins
+      .map((bin) => `${bin.id}:${bin.status}:${Number(bin.lat).toFixed(6)},${Number(bin.lon).toFixed(6)}`)
+      .join("|");
+  }
+
+  function clearRoadRoute() {
+    if (!routingControl) return;
+    try { map.removeControl(routingControl); } catch (_) { /* no-op */ }
+    routingControl = null;
+    generatedRouteHash = "";
+  }
+
+  function createRoutingControl(waypoints) {
+    return new Promise((resolve, reject) => {
+      const control = L.Routing.control({
+        waypoints: waypoints,
+        router: L.Routing.osrmv1({
+          serviceUrl: "https://router.project-osrm.org/route/v1",
+          profile: "driving"
+        }),
+        addWaypoints: false,
+        draggableWaypoints: false,
+        routeWhileDragging: false,
+        fitSelectedRoutes: false,
+        show: false,
+        collapsible: true,
+        createMarker: () => null,
+        lineOptions: {
+          styles: [{ color: "#38bdf8", weight: 6, opacity: 0.9 }]
+        }
+      });
+
+      const onFound = (event) => {
+        if (!event || !Array.isArray(event.routes) || event.routes.length === 0) {
+          onError({ error: new Error("OSRM returned no routes"), event });
+          return;
+        }
+        control.off("routesfound", onFound);
+        control.off("routingerror", onError);
+        resolve(control);
+      };
+      const onError = (event) => {
+        control.off("routesfound", onFound);
+        control.off("routingerror", onError);
+        const statusCode = event?.error?.status || event?.status || "unknown";
+        const message = event?.error?.message || event?.message || "Unknown OSRM error";
+        console.error("[drawRoadRoute] OSRM routing error:", event);
+        console.error(`[drawRoadRoute] OSRM status=${statusCode}, message=${message}`);
+        try { map.removeControl(control); } catch (_) { /* no-op */ }
+        reject(new Error(`Routing request failed (status=${statusCode}): ${message}`));
+      };
+
+      control.on("routesfound", onFound);
+      control.on("routingerror", onError);
+      control.addTo(map);
+    });
+  }
+
+  async function drawRoadRoute() {
+    if (routeRequestInFlight) return;
+    routeRequestInFlight = true;
+    try {
+      if (!L.Routing || !L.Routing.control) {
+        console.error("[drawRoadRoute] Leaflet Routing Machine not loaded.");
+        return;
+      }
+
+      if (!latestBinsData || latestBinsData.length === 0) {
+        const response = await fetch(apiUrl("/bins"));
+        latestBinsData = await response.json();
+      }
+
+      const routeBins = buildRouteBins(latestBinsData);
+      const nextHash = routeHash(routeBins);
+      const actionableBinsCount = (latestBinsData || []).filter((bin) => bin.status === "CRITICAL" || bin.status === "WARNING").length;
+
+      if (routeBins.length < 2) {
+        console.warn("[drawRoadRoute] Need at least 2 WARNING/CRITICAL bins for routing.");
+        return;
+      }
+      if (actionableBinsCount > MAX_ROUTE_BINS) {
+        console.warn(`[drawRoadRoute] Limiting route bins to ${MAX_ROUTE_BINS} to keep total waypoints <= ${MAX_OSRM_WAYPOINTS}.`);
+      }
+
+      // Do not redraw unless actionable bins changed.
+      if (routingControl && nextHash === generatedRouteHash) return;
+
+      const waypoints = [
+        L.latLng(HUB_COORDINATE.lat, HUB_COORDINATE.lon),
+        ...routeBins.map((bin) => L.latLng(bin.lat, bin.lon))
+      ];
+      const nextControl = await createRoutingControl(waypoints);
+
+      // Swap route only after the new one is successfully found.
+      if (routingControl) {
+        try { map.removeControl(routingControl); } catch (_) { /* no-op */ }
+      }
+      routingControl = nextControl;
+      generatedRouteHash = nextHash;
+      addLog("system-log-list", `Waste route generated (${routeBins.length} bins).`, 16);
+    } catch (error) {
+      // Keep previous route visible if new request fails.
+      console.error("[drawRoadRoute] failed:", error);
+      addLog("system-log-list", `Route generation failed: ${error.message || "Unknown error"}`, 16);
+    } finally {
+      routeRequestInFlight = false;
+    }
+  }
+
+  function decisionClass(priority) {
+    return priority === "HIGH" ? "priority-high" : (priority === "MEDIUM" ? "priority-medium" : "priority-low");
+  }
+
+  function crossPriorityClass(priority) {
+    if (priority === "CRITICAL") return "critical";
+    if (priority === "MEDIUM") return "medium";
+    return "low";
+  }
+
+  async function loadDecisions() {
+    try {
+      const response = await fetch(apiUrl("/ai-decisions"));
+      const payload = await response.json();
+      const decisions = payload.decisions || [];
+      const list = document.getElementById("decision-list");
+      if (decisions.length === 0) {
+        list.innerHTML = `<div class="decision-item priority-low"><div class="decision-priority">LOW</div><div class="decision-message">System stable</div></div>`;
+        return;
+      }
+      list.innerHTML = decisions.map((item) => `<div class="decision-item ${decisionClass(item.priority)}"><div class="decision-priority">${item.priority}</div><div class="decision-message">${item.message}</div></div>`).join("");
+      addLog("system-log-list", `Decisions updated (${decisions.length} action(s))`, 16);
+    } catch (error) { console.error("[loadDecisions] failed:", error); }
+  }
+
+  async function loadCrossIntelligence() {
+    try {
+      const response = await fetch(apiUrl("/cross-intelligence"));
+      const payload = await response.json();
+      const actions = payload.composite_actions || [];
+      const list = document.getElementById("cross-intelligence-list");
+      const explanation = document.getElementById("cross-intelligence-explanation");
+
+      if (actions.length === 0) {
+        list.innerHTML = `
+          <div class="cross-item low">
+            <div class="cross-priority">LOW</div>
+            <div class="cross-zones">Zone: ${zoneLabel(activeZone)}</div>
+            <div class="cross-action">No compound risk detected.</div>
+            <div class="cross-confidence">Confidence: 0.70</div>
+          </div>
+        `;
+        explanation.textContent = "No high-impact co-occurrence between modules.";
+        return;
+      }
+
+      list.innerHTML = actions.map((item) => `
+        <div class="cross-item ${crossPriorityClass(item.priority)}">
+          <div class="cross-priority">${item.priority}</div>
+          <div class="cross-zones">Zones: ${(item.zones || []).join(", ") || zoneLabel(activeZone)}</div>
+          <div class="cross-action">${item.recommended_action}</div>
+          <div class="cross-confidence">Confidence: ${Number(item.confidence || 0).toFixed(2)}</div>
+        </div>
+      `).join("");
+
+      explanation.textContent = `${payload.explanation || "No explanation"} | ${payload.context || ""}`;
+      addLog("system-log-list", `Cross-intelligence updated (${actions.length} composite action(s))`, 16);
+    } catch (error) {
+      console.error("[loadCrossIntelligence] failed:", error);
+    }
+  }
+
+  async function loadTwinStatus() {
+    try {
+      const response = await fetch(apiUrl("/digital-twin/status"));
+      const twin = await response.json();
+      let campusTwin = twin;
+      if (activeZone) {
+        const campusResponse = await fetch(apiUrl("/digital-twin/status", false));
+        campusTwin = await campusResponse.json();
+      }
+      currentEscalationIndex = twin.escalation_index || 0;
+      if (latestBinsData.length > 0) updateDashboard(latestBinsData);
+      document.getElementById("scenario-select").value = twin.scenario;
+      document.getElementById("mode-select").value = twin.mode;
+      document.getElementById("stress-toggle").checked = !!twin.stress_test;
+      document.getElementById("stress-level").value = twin.stress_level;
+      document.getElementById("twin-status").textContent = `Scenario: ${twin.scenario} | Mode: ${twin.mode} | Escalation: ${Number(twin.escalation_index).toFixed(1)}`;
+      updateZoneHeader(twin.risk_score, campusTwin.risk_score, twin.total_zones || 4);
+      addLog("twin-log-list", `Twin state synced: ${twin.scenario} / ${twin.mode} / stress ${twin.stress_level}`, 14);
+    } catch (error) { console.error("[loadTwinStatus] failed:", error); }
+  }
+  async function loadForecast() {
+    try {
+      ensureForecastCharts();
+      const response = await fetch(apiUrl("/forecast"));
+      const payload = await response.json();
+      const wasteForecast = payload.waste_forecast || [0, 0, 0, 0, 0, 0];
+      const energyForecast = payload.energy_forecast || [0, 0, 0, 0, 0, 0];
+      const riskTrend = payload.risk_trend || [0];
+      const riskLabels = riskTrend.map((_, idx) => `t-${riskTrend.length - idx - 1}`);
+
+      updateChartData(wasteForecastChart, forecastLabels, wasteForecast);
+      updateChartData(energyForecastChart, forecastLabels, energyForecast);
+      updateChartData(riskTrendChart, riskLabels, riskTrend);
+
+      const wasteAvg = wasteForecast.length > 0 ? (wasteForecast.reduce((a, b) => a + b, 0) / wasteForecast.length).toFixed(1) : "0.0";
+      const energyAvg = energyForecast.length > 0 ? (energyForecast.reduce((a, b) => a + b, 0) / energyForecast.length).toFixed(1) : "0.0";
+      document.getElementById("analytics-waste").textContent = `${wasteAvg}%`;
+      document.getElementById("analytics-energy").textContent = `${energyAvg} kW`;
+      document.getElementById("analytics-risk").textContent = String(currentRiskScore);
+    } catch (error) { console.error("[loadForecast] failed:", error); }
+  }
+
+  async function loadCostOptimization() {
+    try {
+      ensureCostChart();
+      const response = await fetch(apiUrl("/cost-optimization"));
+      const payload = await response.json();
+
+      const waste = payload.waste || {};
+      const water = payload.water || {};
+      const energy = payload.energy || {};
+      const comparison = payload.comparison || {};
+
+      document.getElementById("cost-waste-inr").textContent = `₹${Number(waste["cost_saved_₹"] || 0).toFixed(0)}`;
+      document.getElementById("cost-water-inr").textContent = `₹${Number(water["cost_saved_₹"] || 0).toFixed(0)}`;
+      document.getElementById("cost-energy-inr").textContent = `₹${Number(energy["cost_saved_₹"] || 0).toFixed(0)}`;
+      document.getElementById("cost-total-inr").textContent = `₹${Number(payload["total_savings_₹"] || 0).toFixed(0)}`;
+
+      document.getElementById("cost-waste-meta").textContent = `Fuel ${Number(waste.fuel_saved_liters || 0).toFixed(1)}L | Time ${Number(waste.minutes_saved || 0).toFixed(0)}m`;
+      document.getElementById("cost-water-meta").textContent = `Loss prevented ${Number(water.liters_loss_prevented || 0).toFixed(0)}L/h`;
+      document.getElementById("cost-energy-meta").textContent = `kWh ${Number(energy.kwh_saved || 0).toFixed(1)} | Peak ${Number(energy.peak_reduction_kw || 0).toFixed(1)}kW`;
+      document.getElementById("cost-co2-meta").textContent = `CO2 prevented ${Number(waste.co2_prevented_kg || 0).toFixed(1)}kg`;
+      document.getElementById("cost-zone-summary").textContent = `Scope: ${payload.active_zone || "entire_campus"}`;
+
+      costComparisonChart.data.datasets[0].data = [
+        Number(comparison["predicted_problem_cost_₹"] || 0),
+        Number(comparison["post_optimization_cost_₹"] || 0)
+      ];
+      costComparisonChart.update();
+    } catch (error) {
+      console.error("[loadCostOptimization] failed:", error);
+    }
+  }
+
+  function applySustainabilityWidget(score, status) {
+    const ring = document.getElementById("sustain-ring");
+    const widget = document.getElementById("sustain-widget");
+    const ringValue = document.getElementById("sustain-ring-value");
+    const scoreText = document.getElementById("sustain-score-text");
+    const statusText = document.getElementById("sustain-status-text");
+
+    let color = "#22c55e";
+    widget.classList.remove("sustain-ok", "sustain-risk", "sustain-critical", "sustain-low-glow");
+    if (status === "CRITICAL") {
+      color = "#ef4444";
+      widget.classList.add("sustain-critical", "sustain-low-glow");
+    } else if (status === "AT RISK") {
+      color = "#f97316";
+      widget.classList.add("sustain-risk");
+    } else {
+      widget.classList.add("sustain-ok");
+    }
+
+    const clamped = Math.max(0, Math.min(100, Number(score) || 0));
+    const angle = (clamped / 100) * 360;
+    ring.style.background = `conic-gradient(${color} ${angle}deg, #1e293b ${angle}deg)`;
+    ringValue.textContent = `${Math.round(clamped)}`;
+    scoreText.textContent = `${Math.round(clamped)}`;
+    statusText.textContent = status;
+  }
+
+  async function loadSustainability() {
+    try {
+      ensureSustainabilityChart();
+      const response = await fetch(apiUrl("/sustainability-score"));
+      const payload = await response.json();
+
+      const score = Number(payload.sustainability_score || 0);
+      const status = payload.status || "AT RISK";
+      currentSustainabilityScore = score;
+      applySustainabilityWidget(score, status);
+
+      const trend = payload.trend || [score];
+      const trendLabels = trend.map((_, idx) => `t-${trend.length - idx - 1}`);
+      sustainabilityTrendChart.data.labels = trendLabels;
+      sustainabilityTrendChart.data.datasets[0].data = trend;
+      sustainabilityTrendChart.data.datasets[0].borderColor = status === "CRITICAL" ? "#ef4444" : (status === "AT RISK" ? "#f97316" : "#22c55e");
+      sustainabilityTrendChart.update();
+
+      const impact = payload.impact_breakdown || {};
+      document.getElementById("sustain-waste-impact").textContent = `${Number(impact.waste_impact_pct || 0).toFixed(1)}%`;
+      document.getElementById("sustain-water-impact").textContent = `${Number(impact.water_impact_pct || 0).toFixed(1)}%`;
+      document.getElementById("sustain-energy-impact").textContent = `${Number(impact.energy_impact_pct || 0).toFixed(1)}%`;
+    } catch (error) {
+      console.error("[loadSustainability] failed:", error);
+    }
+  }
+
+  async function applyTwinConfig() {
+    const params = new URLSearchParams({
+      scenario: document.getElementById("scenario-select").value,
+      mode: document.getElementById("mode-select").value,
+      stress_test: document.getElementById("stress-toggle").checked ? "true" : "false",
+      stress_level: document.getElementById("stress-level").value
+    });
+
+    try {
+      await fetch(apiUrl(`/digital-twin/config?${params.toString()}`, false), { method: "POST" });
+      addLog("twin-log-list", `Applied twin config: ${params.get("scenario")}, ${params.get("mode")}, stress=${params.get("stress_level")}`, 14);
+      await loadTwinStatus();
+      await Promise.all([loadBins(), loadWaterNodes(), loadEnergyNodes(), loadDecisions(), loadCrossIntelligence(), loadForecast(), loadCostOptimization(), loadSustainability()]);
+    } catch (error) { console.error("[applyTwinConfig] failed:", error); }
+  }
+
+  async function applyTwinPreset(preset) {
+    const presets = {
+      festival: { scenario: "festival_peak", mode: "aggressive", stressTest: true, stressLevel: 3 },
+      rainstorm: { scenario: "rainstorm", mode: "normal", stressTest: true, stressLevel: 2 },
+      recovery: { scenario: "normal_day", mode: "conservative", stressTest: false, stressLevel: 1 }
+    };
+
+    const config = presets[preset];
+    if (!config) return;
+
+    document.getElementById("scenario-select").value = config.scenario;
+    document.getElementById("mode-select").value = config.mode;
+    document.getElementById("stress-toggle").checked = config.stressTest;
+    document.getElementById("stress-level").value = config.stressLevel;
+    await applyTwinConfig();
+  }
+
+  document.getElementById("apply-twin-btn").addEventListener("click", applyTwinConfig);
+  document.getElementById("preset-festival").addEventListener("click", () => applyTwinPreset("festival"));
+  document.getElementById("preset-rainstorm").addEventListener("click", () => applyTwinPreset("rainstorm"));
+  document.getElementById("preset-recovery").addEventListener("click", () => applyTwinPreset("recovery"));
+  document.getElementById("generate-route-btn").addEventListener("click", drawRoadRoute);
+  document.getElementById("zone-select").addEventListener("change", async (event) => {
+    activeZone = event.target.value;
+    updateZoneHeader();
+    clearRoadRoute();
+    await Promise.all([loadBins(), loadWaterNodes(), loadEnergyNodes(), loadDecisions(), loadCrossIntelligence(), loadTwinStatus(), loadForecast(), loadCostOptimization(), loadSustainability()]);
+  });
+
+  ensureForecastCharts();
+  ensureCostChart();
+  ensureSustainabilityChart();
+  updateZoneHeader();
+  loadBins();
+  loadWaterNodes();
+  loadEnergyNodes();
+  loadDecisions();
+  loadCrossIntelligence();
+  loadTwinStatus();
+  loadForecast();
+  loadCostOptimization();
+  loadSustainability();
+
+  setInterval(loadBins, 5000);
+  setInterval(loadWaterNodes, 5000);
+  setInterval(loadEnergyNodes, 5000);
+  setInterval(loadDecisions, 5000);
+  setInterval(loadCrossIntelligence, 5000);
+  setInterval(loadTwinStatus, 5000);
+  setInterval(loadForecast, 5000);
+  setInterval(loadCostOptimization, 10000);
+  setInterval(loadSustainability, 5000);
+</script>
+</body>
+</html>
