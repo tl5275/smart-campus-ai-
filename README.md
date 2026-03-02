@@ -96,6 +96,9 @@ When `APP_ENV=development` and `CORS_ORIGINS` is empty, permissive CORS (`*`) is
 - `/sustainability-score`
 =======
 
+## Webpage
+https://smart-campus-ai-zsif.onrender.com/
+
 ## Video demo
 https://youtu.be/4u-NtkDM310
 
