@@ -95,5 +95,9 @@ When `APP_ENV=development` and `CORS_ORIGINS` is empty, permissive CORS (`*`) is
 - `/cross-intelligence`
 - `/sustainability-score`
 =======
+
+## Video demo
+https://youtu.be/4u-NtkDM310
+
 # smart-campus-ai
 >>>>>>> 9cf8e24d1db5849a63af3628b428298963e1110a
